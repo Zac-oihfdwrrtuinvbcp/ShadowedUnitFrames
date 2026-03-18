@@ -2454,6 +2454,26 @@ local function loadUnitOptions()
 						return not (cfg and cfg.enabled)
 					end,
 				},
+				disableRemovableColor = {
+					order = 1.8,
+					type = "toggle",
+					name = L["Disable dispel coloring"],
+					desc = L["Disables the special border color for dispellable/purgeable auras. They will use school colors instead (Magic, Curse, Disease, Poison)."],
+					get = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return cfg and cfg.disableRemovableColor
+					end,
+					set = function(info, value)
+						local auraType = info[#(info) - 2]
+						setAuraFrameValue(info[2], auraType, frameIndex, "disableRemovableColor", value)
+					end,
+					disabled = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return not (cfg and cfg.enabled)
+					end,
+				},
 				filter = {
 					order = 2,
 					type = "select",
@@ -2599,6 +2619,123 @@ local function loadUnitOptions()
 					set = function(info, value)
 						local auraType = info[#(info) - 2]
 						setAuraFrameValue(info[2], auraType, frameIndex, "y", value)
+					end,
+					disabled = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return not (cfg and cfg.enabled)
+					end,
+				},
+				disableBlizzardCC = {
+					order = 8.1,
+					type = "toggle",
+					name = L["Disable Blizzard Cooldown Count"],
+					desc = L["Disables showing Cooldown Count timers in all Shadowed Unit Frame auras."],
+					get = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						if cfg and cfg.disableBlizzardCC ~= nil then return cfg.disableBlizzardCC end
+						return ShadowUF.db.profile.blizzardcc
+					end,
+					set = function(info, value)
+						local auraType = info[#(info) - 2]
+						setAuraFrameValue(info[2], auraType, frameIndex, "disableBlizzardCC", value)
+					end,
+					disabled = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return not (cfg and cfg.enabled)
+					end,
+				},
+				cooldownFont = {
+					order = 8.2,
+					type = "select",
+					name = L["Font"],
+					dialogControl = "LSM30_Font",
+					values = function()
+						SML = SML or LibStub:GetLibrary("LibSharedMedia-3.0")
+						local list = {}
+						for _, name in pairs(SML:List("font")) do list[name] = name end
+						return list
+					end,
+					get = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return cfg and cfg.cooldownFont or ShadowUF.db.profile.font.cooldownName or ShadowUF.db.profile.font.name
+					end,
+					set = function(info, value)
+						local auraType = info[#(info) - 2]
+						setAuraFrameValue(info[2], auraType, frameIndex, "cooldownFont", value)
+					end,
+					disabled = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return not (cfg and cfg.enabled)
+					end,
+				},
+				cooldownFontSize = {
+					order = 8.3,
+					type = "range",
+					name = L["Size"],
+					min = 1, max = 50, step = 1, softMin = 1, softMax = 20,
+					get = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return cfg and cfg.cooldownFontSize or ShadowUF.db.profile.font.cooldownSize or ShadowUF.db.profile.font.size
+					end,
+					set = function(info, value)
+						local auraType = info[#(info) - 2]
+						setAuraFrameValue(info[2], auraType, frameIndex, "cooldownFontSize", value)
+					end,
+					disabled = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return not (cfg and cfg.enabled)
+					end,
+				},
+				cooldownFontOutline = {
+					order = 8.4,
+					type = "select",
+					name = L["Outline"],
+					values = {["OUTLINE"] = L["Thin outline"], ["THICKOUTLINE"] = L["Thick outline"], ["MONOCHROMEOUTLINE"] = L["Monochrome Outline"], [""] = L["None"]},
+					get = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						if cfg and cfg.cooldownFontOutline then return cfg.cooldownFontOutline end
+						local fontDetails = ShadowUF.db.profile.font
+						return fontDetails.cooldownOutline or fontDetails.extra or "OUTLINE"
+					end,
+					set = function(info, value)
+						local auraType = info[#(info) - 2]
+						setAuraFrameValue(info[2], auraType, frameIndex, "cooldownFontOutline", value)
+					end,
+					disabled = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return not (cfg and cfg.enabled)
+					end,
+				},
+				cooldownFontColor = {
+					order = 8.5,
+					type = "color",
+					name = L["Default color"],
+					hasAlpha = true,
+					get = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						local color = (cfg and cfg.cooldownFontColor) or ShadowUF.db.profile.font.cooldownColor
+						if color then
+							return color.r, color.g, color.b, color.a or 1
+						end
+						return 1, 1, 1, 1
+					end,
+					set = function(info, r, g, b, a)
+						local auraType = info[#(info) - 2]
+						local config = ShadowUF.db.profile.units[info[2]]
+						if config and config.auras and config.auras[auraType] and config.auras[auraType][frameIndex] then
+							config.auras[auraType][frameIndex].cooldownFontColor = {r = r, g = g, b = b, a = a}
+							reloadUnitAuras()
+						end
 					end,
 					disabled = function(info)
 						local auraType = info[#(info) - 2]

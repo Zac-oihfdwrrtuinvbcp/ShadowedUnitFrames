@@ -140,15 +140,6 @@ local function checkRange(self)
         return
     end
 
-
-    -- Fallback: CheckInteractDistance for non-group units (friendly NPCs, etc.)
-    -- distIndex 4 ≈ 28 yards — not perfect but better than no check
-    local ok, inDist = pcall(CheckInteractDistance, frame.unit, 4)
-    if ok and inDist ~= nil then
-        frame:SetRangeAlpha(inDist and inAlpha or oorAlpha)
-        return
-    end
-
     -- Default
     frame:SetRangeAlpha(inAlpha)
 end

@@ -298,7 +298,10 @@ end
 
 local auraList = {}
 local function scanAuras(frame, filter, type)
-	local isFriendly = not UnitIsEnemy(frame.unit, "player")
+	-- UnitIsFriend=true during duels, UnitIsEnemy=false for neutrals
+	-- Combine both: true only for actual friendlies (not neutrals, not duel targets)
+	local isEnemy = UnitIsEnemy(frame.unit, "player")
+	local isFriendly = UnitIsFriend(frame.unit, "player") and not isEnemy
 
 	-- 12.0: pcall for compound unit tokens (same pattern as auras.lua)
 	local ok, slots = pcall(function() return {C_UnitAuras.GetAuraSlots(frame.unit, filter)} end)

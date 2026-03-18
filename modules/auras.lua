@@ -326,12 +326,10 @@ local function updateButton(id, group, config)
 	end
 
 	-- Set the button sizing
-	-- button.cooldown.noCooldownCount = ShadowUF.db.profile.omnicc
-	-- OmniCC support removed / automated by Blizzard text now.
-	
-	-- If 'blizzardcc' is true ("Disable Blizzard Cooldown Count"), we HIDE valid numbers.
-	-- If false, we SHOW valid numbers.
-	button.cooldown:SetHideCountdownNumbers(ShadowUF.db.profile.blizzardcc)
+	-- Per-frame override for Blizzard Cooldown Count, fallback to global
+	local hideCC = config.disableBlizzardCC
+	if hideCC == nil then hideCC = ShadowUF.db.profile.blizzardcc end
+	button.cooldown:SetHideCountdownNumbers(hideCC)
 	button:SetHeight(config.size)
 	button:SetWidth(config.size)
 	button.border:SetHeight(config.size + 1)
@@ -356,10 +354,10 @@ local function updateButton(id, group, config)
 	positionButton(id, group, config)
 	
 	-- Update Cooldown Text Styling
-	Auras:UpdateCooldownText(button)
+	Auras:UpdateCooldownText(button, config)
 end
 
-function Auras:UpdateCooldownText(button)
+function Auras:UpdateCooldownText(button, config)
 	if( not button or not button.cooldown ) then return end
 
 	-- Try to get the cooldown text region if we haven't already
@@ -371,20 +369,20 @@ function Auras:UpdateCooldownText(button)
 			end
 		end
 	end
-	
+
 	local text = button.cooldown.timerText
 	if( text ) then
-		-- Apply Font Settings
+		-- Apply Font Settings: per-frame override → global aura font → general font
 		local fontDetails = ShadowUF.db.profile.font
-		local font = SML:Fetch("font", fontDetails.cooldownName or fontDetails.name)
-		local size = fontDetails.cooldownSize or fontDetails.size
-		local outline = fontDetails.cooldownOutline
-		if( outline == nil ) then outline = fontDetails.extra end -- Fallback to general setting if specific not set
-		
+		local font = SML:Fetch("font", (config and config.cooldownFont) or fontDetails.cooldownName or fontDetails.name)
+		local size = (config and config.cooldownFontSize) or fontDetails.cooldownSize or fontDetails.size
+		local outline = (config and config.cooldownFontOutline) or fontDetails.cooldownOutline
+		if( outline == nil ) then outline = fontDetails.extra end
+
 		text:SetFont(font, size, outline)
-		
-		-- Apply Color
-		local color = fontDetails.cooldownColor
+
+		-- Apply Color: per-frame override → global aura font color
+		local color = (config and config.cooldownFontColor) or fontDetails.cooldownColor
 		if( color ) then
 			text:SetTextColor(color.r, color.g, color.b, color.a or 1)
 		else
@@ -937,9 +935,9 @@ local function renderAura(parent, frame, type, config, displayConfig, index, fil
 
 	-- Show debuff border, or a special colored border if it's stealable
 	local button = frame.buttons[frame.totalAuras]
-	if( isRemovable and not ShadowUF.db.profile.auras.disableColor ) then
+	if( isRemovable and not config.disableRemovableColor ) then
 		button.border:SetVertexColor(ShadowUF.db.profile.auraColors.removable.r, ShadowUF.db.profile.auraColors.removable.g, ShadowUF.db.profile.auraColors.removable.b)
-	elseif( not ShadowUF.db.profile.auras.disableColor ) then
+	elseif( true ) then
 		-- 12.0: GetAuraDispelTypeColor to color auras.
 		if( C_UnitAuras.GetAuraDispelTypeColor and C_CurveUtil ) then
 			local curve = Auras:GetDispelColorCurve(type)
@@ -1035,24 +1033,20 @@ local function scanConfigMode(parent, frame, type, config, displayConfig, filter
 		local button = frame.buttons[frame.totalAuras]
 		
 		-- Set border color based on aura type
-		if( not ShadowUF.db.profile.auras.disableColor ) then
-			if( isRemovable and not isBuff ) then
-				button.border:SetVertexColor(ShadowUF.db.profile.auraColors.removable.r, ShadowUF.db.profile.auraColors.removable.g, ShadowUF.db.profile.auraColors.removable.b)
-			elseif( auraType == "Magic" ) then
-				button.border:SetVertexColor(0.2, 0.6, 1)
-			elseif( auraType == "Curse" ) then
-				button.border:SetVertexColor(0.6, 0, 1)
-			elseif( auraType == "Disease" ) then
-				button.border:SetVertexColor(0.6, 0.4, 0)
-			elseif( auraType == "Poison" ) then
-				button.border:SetVertexColor(0, 0.6, 0)
-			elseif( isBuff ) then
-				button.border:SetVertexColor(0.6, 0.6, 0.6)
-			else
-				button.border:SetVertexColor(0.8, 0, 0)
-			end
+		if( isRemovable and not isBuff and not config.disableRemovableColor ) then
+			button.border:SetVertexColor(ShadowUF.db.profile.auraColors.removable.r, ShadowUF.db.profile.auraColors.removable.g, ShadowUF.db.profile.auraColors.removable.b)
+		elseif( auraType == "Magic" ) then
+			button.border:SetVertexColor(0.2, 0.6, 1)
+		elseif( auraType == "Curse" ) then
+			button.border:SetVertexColor(0.6, 0, 1)
+		elseif( auraType == "Disease" ) then
+			button.border:SetVertexColor(0.6, 0.4, 0)
+		elseif( auraType == "Poison" ) then
+			button.border:SetVertexColor(0, 0.6, 0)
+		elseif( isBuff ) then
+			button.border:SetVertexColor(0.6, 0.6, 0.6)
 		else
-			button.border:SetVertexColor(0.60, 0.60, 0.60)
+			button.border:SetVertexColor(0.8, 0, 0)
 		end
 		
 		-- Show cooldown for test
@@ -1139,8 +1133,10 @@ local function scan(parent, frame, type, config, displayConfig, filter)
 	if not frame.parent.unit then return end
 	local unit = frame.parent.unit
 
-	-- UnitIsFriend returns true during a duel, which breaks stealable/curable detection
-	local isFriendly = not UnitIsEnemy(unit, "player")
+	-- UnitIsFriend=true during duels, UnitIsEnemy=false for neutrals
+	-- Combine both: true only for actual friendlies (not neutrals, not duel targets)
+	local isEnemy = UnitIsEnemy(unit, "player")
+	local isFriendly = UnitIsFriend(unit, "player") and not isEnemy
 	local curable = (isFriendly and type == "debuffs")
 
 	-- 12.0: All aura APIs use UnitTokenRestrictedForAddOns which blocks compound unit tokens
