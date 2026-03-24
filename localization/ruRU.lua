@@ -812,6 +812,10 @@ L["Temp enchant scan"] = "Временные чары"
 L["How often to scan for temporary weapon enchants (seconds)."] = "Частота сканирования временных зачарований оружия (секунды)."
 L["Reset to defaults"] = "Сбросить по умолчанию"
 L["Reset all performance settings to their default values."] = "Сбросить все настройки производительности к значениям по умолчанию."
+L["Add spell"] = "Добавить заклинание"
+L["Blacklist / Whitelist"] = "Чёрный список / Белый список"
+L["Apply the blacklist/whitelist from the Aura Filters tab to this frame. This is separate from the Blizzard API filter below."] = "Применить чёрный или белый список из вкладки «Фильтры аур» к этому фрейму. Эта настройка не зависит от фильтра Blizzard ниже."
+L["Whitelists will hide any aura not in the filter group.|nBlacklists will hide auras that are in the filter group.|nOnly Blizzard whitelisted spells (non-secret in combat) can be added to filters."] = "Белые списки скрывают ауры, отсутствующие в фильтре.|nЧёрные списки скрывают ауры, присутствующие в фильтре.|nДобавлять можно только заклинания, одобренные Blizzard (не секретные в бою)."
 
 local ShadowUF = select(2, ...)
 ShadowUF.L = setmetatable(L, {__index = ShadowUF.L})

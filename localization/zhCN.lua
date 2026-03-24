@@ -1011,6 +1011,10 @@ L["Temp enchant scan"] = "临时附魔扫描"
 L["How often to scan for temporary weapon enchants (seconds)."] = "临时武器附魔的扫描频率（秒）。"
 L["Reset to defaults"] = "恢复默认"
 L["Reset all performance settings to their default values."] = "将所有性能设置恢复为默认值。"
+L["Add spell"] = "添加法术"
+L["Blacklist / Whitelist"] = "黑名单 / 白名单"
+L["Apply the blacklist/whitelist from the Aura Filters tab to this frame. This is separate from the Blizzard API filter below."] = "将光环过滤器选项卡中的黑名单或白名单应用到此框架。此设置与下方的暴雪API过滤器无关。"
+L["Whitelists will hide any aura not in the filter group.|nBlacklists will hide auras that are in the filter group.|nOnly Blizzard whitelisted spells (non-secret in combat) can be added to filters."] = "白名单将隐藏不在过滤器中的所有光环。|n黑名单将隐藏在过滤器中的光环。|n只能添加暴雪许可的法术（战斗中非机密）。"
 
 local ShadowUF = select(2, ...)
 ShadowUF.L = setmetatable(L, {__index = ShadowUF.L})

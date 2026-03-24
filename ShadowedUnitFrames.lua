@@ -33,6 +33,7 @@ function ShadowUF:OnInitialize()
 			advanced = false,
 			tooltipCombat = false,
 			bossmodSpellRename = true,
+			enlargeLayout = false,
 			omnicc = false,
 			blizzardcc = true,
 			tags = {},
@@ -549,8 +550,10 @@ function ShadowUF:LoadUnitDefaults()
 	self.defaults.profile.units.target.indicators.lfdRole = {enabled = false, size = 0, x = 0, y = 0}
 	self.defaults.profile.units.target.indicators.questBoss = {enabled = true, size = 0, x = 0, y = 0}
 	self.defaults.profile.units.target.comboPoints = {enabled = false, isBar = true}
+	self.defaults.profile.units.target.fader = {enabled = false, combatAlpha = 1.0, inactiveAlpha = 0.60}
 	-- TARGETTARGET/TARGETTARGETTARGET
 	self.defaults.profile.units.targettarget.enabled = true
+	self.defaults.profile.units.targettarget.fader = {enabled = false, combatAlpha = 1.0, inactiveAlpha = 0.60}
 	self.defaults.profile.units.targettargettarget.enabled = true
 	-- PARTY
 	self.defaults.profile.units.party.enabled = true
@@ -569,6 +572,7 @@ function ShadowUF:LoadUnitDefaults()
 	self.defaults.profile.units.arena.offset = 0
 	self.defaults.profile.units.arena.indicators.arenaSpec = {enabled = true, size = 0, x = 0, y = 0}
 	self.defaults.profile.units.arena.indicators.lfdRole = {enabled = true, size = 0, x = 0, y = 0}
+	self.defaults.profile.units.arena.fader = {enabled = false, combatAlpha = 1.0, inactiveAlpha = 0.60}
 	-- BATTLEGROUND
 	self.defaults.profile.units.battleground.enabled = false
 	self.defaults.profile.units.battleground.attribPoint = "TOP"
@@ -576,6 +580,7 @@ function ShadowUF:LoadUnitDefaults()
 	self.defaults.profile.units.battleground.auras.debuffs.maxRows = 1
 	self.defaults.profile.units.battleground.auras.buffs.maxRows = 1
 	self.defaults.profile.units.battleground.offset = 0
+	self.defaults.profile.units.battleground.fader = {enabled = false, combatAlpha = 1.0, inactiveAlpha = 0.60}
 	-- BOSS
 	self.defaults.profile.units.boss.enabled = false
 	self.defaults.profile.units.boss.attribPoint = "TOP"
@@ -584,6 +589,7 @@ function ShadowUF:LoadUnitDefaults()
 	self.defaults.profile.units.boss.auras.buffs.maxRows = 1
 	self.defaults.profile.units.boss.offset = 0
 	self.defaults.profile.units.boss.altPowerBar.enabled = true
+	self.defaults.profile.units.boss.fader = {enabled = false, combatAlpha = 1.0, inactiveAlpha = 0.60}
 	-- RAID
 	self.defaults.profile.units.raid.groupBy = "GROUP"
 	self.defaults.profile.units.raid.sortOrder = "ASC"

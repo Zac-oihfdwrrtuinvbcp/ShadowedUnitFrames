@@ -1008,6 +1008,10 @@ L["Temp enchant scan"] = "임시 마법부여 스캔"
 L["How often to scan for temporary weapon enchants (seconds)."] = "임시 무기 마법부여 스캔 주기 (초)."
 L["Reset to defaults"] = "기본값으로 초기화"
 L["Reset all performance settings to their default values."] = "모든 성능 설정을 기본값으로 초기화합니다."
+L["Add spell"] = "주문 추가"
+L["Blacklist / Whitelist"] = "차단 목록 / 허용 목록"
+L["Apply the blacklist/whitelist from the Aura Filters tab to this frame. This is separate from the Blizzard API filter below."] = "오라 필터 탭의 차단/허용 목록을 이 프레임에 적용합니다. 아래의 블리자드 API 필터와는 별개의 설정입니다."
+L["Whitelists will hide any aura not in the filter group.|nBlacklists will hide auras that are in the filter group.|nOnly Blizzard whitelisted spells (non-secret in combat) can be added to filters."] = "허용 목록은 필터에 없는 모든 오라를 숨깁니다.|n차단 목록은 필터에 있는 오라를 숨깁니다.|n블리자드가 허용한 주문(전투 중 비밀이 아닌)만 추가할 수 있습니다."
 
 local ShadowUF = select(2, ...)
 ShadowUF.L = setmetatable(L, {__index = ShadowUF.L})

@@ -12,6 +12,7 @@ local FILTER_STRINGS = {
 
 local AURA_TYPES = {"buffs", "debuffs"}
 
+local columnsHaveScale = {}
 local _scanUnit, _scanFilter
 local function _safeGetAuraSlots()
 	return {C_UnitAuras.GetAuraSlots(_scanUnit, _scanFilter)}
@@ -172,9 +173,104 @@ local function positionButton(id,  group, config)
 end
 
 
--- Reposition all buttons using flow layout when enlarged auras are present
--- Overflowing auras wrap to the next row naturally
-local function positionAllButtons(group, config)
+-- Fixed layout: grid-based wrapping (always perRow auras per row) with inter-row offset compensation
+-- Adapted from v4.4.14 original behavior
+local function positionAllButtonsFixed(group, config)
+	local position = positionData[group.forcedAnchorPoint or config.anchorPoint]
+
+	-- Pass 1: figure out which rows have scaled auras
+	local columnID = 0
+	for id = 1, group.totalAuras do
+		local button = group.buttons[id]
+		if( not button or not button:IsShown() ) then break end
+
+		if( id % config.perRow == 1 or config.perRow == 1 ) then
+			columnID = columnID + 1
+			columnsHaveScale[columnID] = nil
+		end
+
+		if( not columnsHaveScale[columnID] and button.isSelfScaled ) then
+			local size = math.ceil(button:GetSize() * button:GetScale())
+			columnsHaveScale[columnID] = columnsHaveScale[columnID] and math.max(size, columnsHaveScale[columnID]) or size
+		end
+	end
+
+	-- Pass 2: position with offset compensation between rows
+	columnID = 1
+	for id = 1, group.totalAuras do
+		local button = group.buttons[id]
+		if( not button or not button:IsShown() ) then break end
+
+		button.isAuraAnchor = nil
+
+		if( id > 1 ) then
+			if( id % config.perRow == 1 or config.perRow == 1 ) then
+				columnID = columnID + 1
+
+				local anchorButton = group.buttons[id - config.perRow]
+				local previousScale, currentScale = columnsHaveScale[columnID - 1], columnsHaveScale[columnID]
+				local offset = 0
+				-- Previous row has a scaled aura, and the button we are anchoring to is not scaled
+				if( previousScale and not anchorButton.isSelfScaled ) then
+					offset = (previousScale / 4)
+				end
+
+				-- Current row has a scaled aura, and the button isn't scaled
+				if( currentScale and not button.isSelfScaled ) then
+					offset = offset + (currentScale / 4)
+				end
+
+				-- Current button is scaled, previous anchor is not
+				if( button.isSelfScaled and not anchorButton.isSelfScaled ) then
+					offset = offset - (currentScale / 6)
+				end
+
+				-- At least one of them is not scaled
+				if( ( not button.isSelfScaled or not anchorButton.isSelfScaled ) and offset > 0 ) then
+					offset = offset + 1
+				end
+
+				position.column(button, anchorButton, math.ceil(offset))
+
+				if( not position.isSideGrowth ) then
+					button.isAuraAnchor = true
+				end
+			else
+				position.aura(button, group.buttons[id - 1])
+
+				if( position.isSideGrowth ) then
+					button.isAuraAnchor = true
+				end
+			end
+		else
+			-- First button: adjust initial anchor if row has scaled auras
+			local offset = 0
+			if( columnsHaveScale[columnID] ) then
+				offset = math.ceil(columnsHaveScale[columnID] / 8)
+				if( button.isSelfScaled ) then
+					offset = -(offset / 2)
+				else
+					offset = offset + 2
+				end
+			end
+
+			button.isAuraAnchor = true
+			button.point = ShadowUF.Layout:GetPoint(config.anchorPoint)
+			button.relativePoint = ShadowUF.Layout:GetRelative(config.anchorPoint)
+			button.xOffset = config.x + (position.xMod * ShadowUF.db.profile.backdrop.inset)
+			button.yOffset = config.y + (position.yMod * ShadowUF.db.profile.backdrop.inset)
+			button.anchorTo = group.anchorTo
+
+			if( offset ~= button.anchorOffset ) then
+				position.initialAnchor(button, offset)
+			end
+		end
+	end
+end
+
+-- Dynamic layout: pixel-based flow wrapping when enlarged auras are present
+-- Rows wrap based on accumulated effective width
+local function positionAllButtonsDynamic(group, config)
 	local position = positionData[group.forcedAnchorPoint or config.anchorPoint]
 	local normalSize = config.size
 	local maxRowWidth = config.perRow * normalSize
@@ -218,6 +314,15 @@ local function positionAllButtons(group, config)
 		end
 
 		prevButton = button
+	end
+end
+
+-- Dispatch to the appropriate layout function based on user setting
+local function positionAllButtons(group, config)
+	if( ShadowUF.db.profile.enlargeLayout ) then
+		positionAllButtonsFixed(group, config)
+	else
+		positionAllButtonsDynamic(group, config)
 	end
 end
 

@@ -865,6 +865,14 @@ local function loadGeneralOptions()
 								arg = "bossmodSpellRename",
 								width = "double",
 							},
+							enlargeLayout = {
+								order = 3.2,
+								type = "toggle",
+								name = L["Fixed enlarged aura layout"],
+								desc = L["Fixed enlarged aura layout desc"],
+								arg = "enlargeLayout",
+								width = "double",
+							},
 							sep2 = {
 								order = 3.5,
 								type = "description",
@@ -2478,7 +2486,7 @@ local function loadUnitOptions()
 					order = 1.9,
 					type = "toggle",
 					name = L["Blacklist / Whitelist"],
-					desc = L["Apply the blacklist/whitelist from the Aura Filters tab to this frame. This is separate from the Blizzard API filter above."],
+					desc = L["Apply the blacklist/whitelist from the Aura Filters tab to this frame. This is separate from the Blizzard API filter below."],
 					get = function(info)
 						local auraType = info[#(info) - 2]
 						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
