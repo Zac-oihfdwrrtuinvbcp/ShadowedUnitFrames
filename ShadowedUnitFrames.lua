@@ -802,6 +802,7 @@ local function basicHideBlizzardFrames(...)
 	end
 end
 
+local hookedFrames = {}
 local function hideBlizzardFrames(...)
 	for i=1, select("#", ...) do
 		local frame = select(i, ...)
@@ -818,6 +819,18 @@ local function hideBlizzardFrames(...)
 			frame:SetParent(ShadowUF.hiddenFrame)
 		end
 		frame:HookScript("OnShow", rehideFrame)
+
+		-- Prevent Blizzard from reparenting the frame away from hiddenFrame
+		if( not hookedFrames[frame] ) then
+			hooksecurefunc(frame, "SetParent", function(self, parent)
+				if( parent ~= ShadowUF.hiddenFrame ) then
+					if( not InCombatLockdown() or not self:IsProtected() ) then
+						self:SetParent(ShadowUF.hiddenFrame)
+					end
+				end
+			end)
+			hookedFrames[frame] = true
+		end
 	end
 end
 
