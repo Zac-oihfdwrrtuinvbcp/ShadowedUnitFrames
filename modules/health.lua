@@ -98,6 +98,7 @@ local function getDispelColorCurve()
 	local curseID = (E and E.Curse) or 2
 	local diseaseID = (E and E.Disease) or 3
 	local poisonID = (E and E.Poison) or 4
+	local bleedID = (E and E.Bleed) or 11
 
 	if curve.SetType and Enum and Enum.LuaCurveType and Enum.LuaCurveType.Step then
 		curve:SetType(Enum.LuaCurveType.Step)
@@ -109,6 +110,7 @@ local function getDispelColorCurve()
 	curve:AddPoint(curseID, CreateColor(0.6, 0, 1, 1))
 	curve:AddPoint(diseaseID, CreateColor(0.6, 0.4, 0, 1))
 	curve:AddPoint(poisonID, CreateColor(0, 0.6, 0, 1))
+	curve:AddPoint(bleedID, CreateColor(0.8, 0, 0, 1))  -- Bleed (Red)
 
 	dispelColorCurve = curve
 	return curve

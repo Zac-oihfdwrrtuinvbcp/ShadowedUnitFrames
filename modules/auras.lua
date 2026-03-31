@@ -44,7 +44,8 @@ function Auras:GetDispelColorCurve(auraType)
 	local curseID = (E and E.Curse) or 2
 	local diseaseID = (E and E.Disease) or 3
 	local poisonID = (E and E.Poison) or 4
-	
+	local bleedID = (E and E.Bleed) or 11
+
 	if( curve.SetType and Enum and Enum.LuaCurveType and Enum.LuaCurveType.Step ) then
 		curve:SetType(Enum.LuaCurveType.Step)
 	end
@@ -63,17 +64,7 @@ function Auras:GetDispelColorCurve(auraType)
 	curve:AddPoint(curseID, CreateColor(0.6, 0, 1))     -- Curse (Purple)
 	curve:AddPoint(diseaseID, CreateColor(0.6, 0.4, 0)) -- Disease (Brown)
 	curve:AddPoint(poisonID, CreateColor(0, 0.6, 0))    -- Poison (Green)
-	
-	-- Add a "Cap" point to catch any IDs higher than Poison (e.g. Bleeds if they are > 4)
-	-- This forces them to fallback to Base Color (Red for Debuffs) instead of clamping to Green
-	local capID = math.max(noneID, magicID, curseID, diseaseID, poisonID) + 1
-	curve:AddPoint(capID, CreateColor(baseR, baseG, baseB))
-	curve:AddPoint(255, CreateColor(baseR, baseG, baseB)) -- Safety max
-	
-    -- Ensure the curve covers the range
-    if( curve.SetMinMaxValues ) then
-	    curve:SetMinMaxValues(0, 255)
-    end
+	curve:AddPoint(bleedID, CreateColor(baseR, baseG, baseB)) -- Bleed (Red)
 	
 	self[cacheKey] = curve
 	return curve
