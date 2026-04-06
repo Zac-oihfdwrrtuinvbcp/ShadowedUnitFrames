@@ -1237,13 +1237,15 @@ local function processAura(parent, frame, type, config, displayConfig, filter, u
 
 	local canApplyAura = (type == "buffs") and isRaid
 	local caster = isPlayerAura and "player" or nil
-	local spellID = auraData.spellId or 0
+	local rawSpellId = auraData.spellId
+	local isSecret = issecretvalue and issecretvalue(rawSpellId)
+	local spellID = isSecret and 0 or (rawSpellId or 0)
 	local auraType = auraData.dispelName
 
 	-- Blacklist/whitelist check (zone-based, non-secret spells only)
 	local whitelist = parent.whitelist
 	local blacklist = parent.blacklist
-	if config.useFilter and (whitelist or blacklist) then
+	if config.useFilter and not isSecret and (whitelist or blacklist) then
 		local spellStr = tostring(spellID)
 		if whitelist[type] and not whitelist[spellID] and not whitelist[spellStr] then
 			return
