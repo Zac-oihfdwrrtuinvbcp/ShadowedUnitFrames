@@ -18,6 +18,33 @@ local function _safeGetAuraSlots()
 	return {C_UnitAuras.GetAuraSlots(_scanUnit, _scanFilter)}
 end
 
+-- Hooks that trigger a SUF aura re-scan after Blizzard finishes updating its frames.
+-- Ensures SUF always reads fresh data regardless of event handler ordering.
+local blizHooksInstalled = false
+
+local function onBlizAurasUpdated(blizFrame)
+	local unit = blizFrame.unit
+	if not unit then return end
+	local sufFrame = ShadowUF.Units.unitFrames[unit]
+	if sufFrame and sufFrame:IsVisible() then
+		Auras:Update(sufFrame)
+	end
+end
+
+local function installBlizAuraHooks()
+	if blizHooksInstalled then return end
+	blizHooksInstalled = true
+	if TargetFrame then
+		hooksecurefunc(TargetFrame, "UpdateAuras", onBlizAurasUpdated)
+	end
+	if FocusFrame then
+		hooksecurefunc(FocusFrame, "UpdateAuras", onBlizAurasUpdated)
+	end
+	if CompactUnitFrame_UpdateAuras then
+		hooksecurefunc("CompactUnitFrame_UpdateAuras", onBlizAurasUpdated)
+	end
+end
+
 function Auras:OnEnable(frame)
 	frame.auras = frame.auras or {}
 
@@ -25,6 +52,23 @@ function Auras:OnEnable(frame)
 	frame:RegisterNormalEvent("ZONE_CHANGED_NEW_AREA", self, "UpdateFilter")
 	frame:RegisterUnitEvent("UNIT_AURA", self, "Update")
 	frame:RegisterUpdateFunc(self, "Update")
+
+	-- Install Blizzard frame hooks once if any aura frame uses the BLIZZARD filter
+	if not blizHooksInstalled then
+		local auraConfig = ShadowUF.db.profile.units[frame.unitType].auras
+		for _, at in ipairs(AURA_TYPES) do
+			local tc = auraConfig and auraConfig[at]
+			if tc then
+				for i = 1, 6 do
+					if tc[i] and tc[i].filter == "BLIZZARD" then
+						installBlizAuraHooks()
+						break
+					end
+				end
+			end
+			if blizHooksInstalled then break end
+		end
+	end
 
 	self:UpdateFilter(frame)
 end
@@ -1269,7 +1313,7 @@ local function scan(parent, frame, type, config, displayConfig, filter)
 	local curable = (isFriendly and type == "debuffs")
 
 	-- 12.0: All aura APIs use UnitTokenRestrictedForAddOns which blocks compound unit tokens
-	-- (focustarget, boss1target, etc.) except "targettarget" which is explicitly exempted.
+	-- (boss1target, etc.) except "targettarget" & focustarget which are explicitly exempted.
 	-- pcall to silently skip unsupported units instead of throwing errors.
 	_scanUnit, _scanFilter = unit, filter
 	local ok, slots = pcall(_safeGetAuraSlots)
@@ -1292,6 +1336,92 @@ local function scan(parent, frame, type, config, displayConfig, filter)
 end
 
 Auras.scan = scan
+
+-- Read Blizzard-filtered auraInstanceIDs directly from Blizzard frame objects.
+-- Returns a list of IDs, empty table if Blizzard has data but nothing to show, or nil if unavailable.
+local function getBlizzardAuraIDs(unit, auraType)
+	local ids = {}
+	local typeKey = (auraType == "buffs")
+
+	-- Target and Focus, read from PriorityTable
+	local directFrames = { target = TargetFrame, focus = FocusFrame }
+	local blizFrame = directFrames[unit]
+	if blizFrame then
+		local tbl = typeKey and blizFrame.activeBuffs or blizFrame.activeDebuffs
+		if tbl then
+			tbl:Iterate(function(id)
+				ids[#ids + 1] = id
+				return false
+			end)
+		end
+		return tbl and ids or nil
+	end
+
+	-- Party, Raid, Arena, find matching CompactUnitFrame
+	local compactFrame
+	for i = 1, 40 do
+		local f = _G["CompactRaidFrame" .. i]
+		if f and f.unit == unit then compactFrame = f; break end
+	end
+	if not compactFrame then
+		for i = 1, 4 do
+			local f = _G["CompactPartyFrameMember" .. i]
+			if f and f.unit == unit then compactFrame = f; break end
+		end
+	end
+	if compactFrame then
+		local children = typeKey and compactFrame.buffFrames or compactFrame.debuffFrames
+		if children then
+			for i = 1, #children do
+				local child = children[i]
+				if not child:IsShown() then break end
+				if child.auraInstanceID then
+					ids[#ids + 1] = child.auraInstanceID
+				end
+			end
+		end
+		return children and ids or nil
+	end
+
+	return nil
+end
+
+-- Scan using Blizzard frames' own filtered aura list.
+-- Reads auraInstanceIDs directly from Blizzard frame objects at scan time,
+-- then fetches each aura's data. Falls back to unfiltered scan if unavailable.
+local function scanBlizzard(parent, frame, type, config, displayConfig)
+	if frame.totalAuras >= frame.maxAuras or not config.enabled then return end
+
+	if frame.parent.configMode then
+		local baseFilter = (type == "buffs") and "HELPFUL" or "HARMFUL"
+		return scanConfigMode(parent, frame, type, config, displayConfig, baseFilter)
+	end
+
+	local unit = frame.parent.unit
+	if not unit then return end
+
+	local auraIDs = getBlizzardAuraIDs(unit, type)
+	if not auraIDs then
+		-- No Blizzard frame data, fall back to player auras only
+		local baseFilter = (type == "buffs") and "HELPFUL|PLAYER" or "HARMFUL|PLAYER"
+		return scan(parent, frame, type, config, displayConfig, baseFilter)
+	end
+
+	local isEnemy = UnitIsEnemy(unit, "player")
+	local isFriendly = UnitIsFriend(unit, "player") and not isEnemy
+	local curable = isFriendly and (type == "debuffs")
+	local baseFilter = (type == "buffs") and "HELPFUL" or "HARMFUL"
+
+	for idx = 1, #auraIDs do
+		local ok, auraData = pcall(C_UnitAuras.GetAuraDataByAuraInstanceID, unit, auraIDs[idx])
+		if ok and auraData then
+			processAura(parent, frame, type, config, displayConfig, baseFilter, unit, isFriendly, curable, idx, auraData)
+		end
+		if frame.totalAuras >= frame.maxAuras then break end
+	end
+
+	for i = frame.totalAuras + 1, #(frame.buttons) do frame.buttons[i]:Hide() end
+end
 
 local function anchorGroupToGroup(frame, config, group, childConfig, childGroup)
 	-- Child group has nothing in it yet, so don't care
@@ -1341,16 +1471,19 @@ function Auras:Update(frame)
 				if( group and frameConfig and frameConfig.enabled and not group.skipScan ) then
 					group.totalAuras = (frameConfig.temporary and frame.unit == "player") and group.temporaryEnchants or 0
 
-					-- Build the filter string based on configuration
-					local baseFilter = auraType == "buffs" and "HELPFUL" or "HARMFUL"
 					local filterValue = frameConfig.filter or "ALL"
-					local effectiveFilter = baseFilter
+					local ok, err
 
-					if filterValue ~= "ALL" then
-						effectiveFilter = baseFilter .. "|" .. filterValue
+					if filterValue == "BLIZZARD" then
+						ok, err = pcall(scanBlizzard, frame.auras, group, auraType, frameConfig, frameConfig)
+					else
+						local baseFilter = auraType == "buffs" and "HELPFUL" or "HARMFUL"
+						local effectiveFilter = baseFilter
+						if filterValue ~= "ALL" then
+							effectiveFilter = baseFilter .. "|" .. filterValue
+						end
+						ok, err = pcall(scan, frame.auras, group, auraType, frameConfig, frameConfig, effectiveFilter)
 					end
-
-					local ok, err = pcall(scan, frame.auras, group, auraType, frameConfig, frameConfig, effectiveFilter)
 					if not ok and not group.hasErrored then
 						ShadowUF:Print("Error scanning " .. groupKey .. " (logged once): " .. tostring(err))
 						group.hasErrored = true
@@ -1373,12 +1506,16 @@ function Auras:Update(frame)
 				if( pair.sequential ) then
 					-- Sequential mode: scan child auras into parent group (continuing after parent's auras)
 					local childAuraType = pair.child.auraType
-					local baseFilter = childAuraType == "buffs" and "HELPFUL" or "HARMFUL"
 					local filterValue = pair.childConfig.filter or "ALL"
-					local effectiveFilter = filterValue ~= "ALL" and (baseFilter .. "|" .. filterValue) or baseFilter
+					local ok, err
 
-					-- Use parentConfig as displayConfig so buttons share the same size/style
-					local ok, err = pcall(scan, frame.auras, pair.parent, childAuraType, pair.childConfig, pair.parentConfig, effectiveFilter)
+					if filterValue == "BLIZZARD" then
+						ok, err = pcall(scanBlizzard, frame.auras, pair.parent, childAuraType, pair.childConfig, pair.parentConfig)
+					else
+						local baseFilter = childAuraType == "buffs" and "HELPFUL" or "HARMFUL"
+						local effectiveFilter = filterValue ~= "ALL" and (baseFilter .. "|" .. filterValue) or baseFilter
+						ok, err = pcall(scan, frame.auras, pair.parent, childAuraType, pair.childConfig, pair.parentConfig, effectiveFilter)
+					end
 					if not ok and not pair.parent.hasErrored then
 						ShadowUF:Print("Error scanning sequential auras (logged once): " .. tostring(err))
 						pair.parent.hasErrored = true

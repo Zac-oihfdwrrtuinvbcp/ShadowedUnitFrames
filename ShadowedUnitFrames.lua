@@ -803,6 +803,44 @@ local function basicHideBlizzardFrames(...)
 end
 
 local hookedFrames = {}
+
+-- Hide a Blizzard frame but preserve specific events for aura tracking (Blizzard filter).
+local function hideBlizzardFrameKeepAuras(frame, keepEvents)
+	if not InCombatLockdown() then
+		UnregisterUnitWatch(frame)
+	end
+	frame:UnregisterAllEvents()
+	for _, event in ipairs(keepEvents) do
+		if event == "UNIT_AURA" then
+			frame:RegisterUnitEvent(event, frame.unit)
+		else
+			frame:RegisterEvent(event)
+		end
+	end
+	frame:Hide()
+
+	if frame.manabar then frame.manabar:UnregisterAllEvents() end
+	if frame.healthbar then frame.healthbar:UnregisterAllEvents() end
+	if frame.spellbar then frame.spellbar:UnregisterAllEvents() end
+	if frame.powerBarAlt then frame.powerBarAlt:UnregisterAllEvents() end
+
+	if not InCombatLockdown() then
+		frame:SetParent(ShadowUF.hiddenFrame)
+	end
+	frame:HookScript("OnShow", rehideFrame)
+
+	if not hookedFrames[frame] then
+		hooksecurefunc(frame, "SetParent", function(self, parent)
+			if parent ~= ShadowUF.hiddenFrame then
+				if not InCombatLockdown() or not self:IsProtected() then
+					self:SetParent(ShadowUF.hiddenFrame)
+				end
+			end
+		end)
+		hookedFrames[frame] = true
+	end
+end
+
 local function hideBlizzardFrames(...)
 	for i=1, select("#", ...) do
 		local frame = select(i, ...)
@@ -832,6 +870,21 @@ local function hideBlizzardFrames(...)
 			hookedFrames[frame] = true
 		end
 	end
+end
+
+-- Check if any aura frame on this unit type uses the Blizzard filter
+local function unitUsesBlizzardFilter(unitType)
+	local cfg = ShadowUF.db.profile.units[unitType]
+	if not cfg or not cfg.auras then return false end
+	for _, auraType in pairs({"buffs", "debuffs"}) do
+		local t = cfg.auras[auraType]
+		if t then
+			for i = 1, 6 do
+				if t[i] and t[i].filter == "BLIZZARD" then return true end
+			end
+		end
+	end
+	return false
 end
 
 local active_hiddens = {}
@@ -867,16 +920,30 @@ function ShadowUF:HideBlizzardFrames()
 		end
 	end
 
+	local needCompactAuraTracking = unitUsesBlizzardFilter("party") or unitUsesBlizzardFilter("raid") or unitUsesBlizzardFilter("arena")
+
 	if( CompactRaidFrameManager ) then
 		if( self.db.profile.hidden.raid and not active_hiddens.raidTriggered ) then
 			active_hiddens.raidTriggered = true
 
 			local function hideRaid()
-				CompactRaidFrameManager:UnregisterAllEvents()
-				CompactRaidFrameContainer:UnregisterAllEvents()
-				if( InCombatLockdown() ) then return end
-
-				CompactRaidFrameManager:Hide()
+				if needCompactAuraTracking then
+					-- Preserve event processing for aura tracking
+					pcall(function()
+						CompactRaidFrameManager:SetAlpha(0)
+						CompactRaidFrameContainer:SetAlpha(0)
+						if not InCombatLockdown() then
+							CompactRaidFrameManager:SetScale(0.001)
+							CompactRaidFrameContainer:SetScale(0.001)
+							CompactRaidFrameManager:Hide()
+						end
+					end)
+				else
+					CompactRaidFrameManager:UnregisterAllEvents()
+					CompactRaidFrameContainer:UnregisterAllEvents()
+					if( InCombatLockdown() ) then return end
+					CompactRaidFrameManager:Hide()
+				end
 				local shown = CompactRaidFrameManager_GetSetting("IsShown")
 				if( shown and shown ~= "0" ) then
 					CompactRaidFrameManager_SetSetting("IsShown", "0")
@@ -893,6 +960,17 @@ function ShadowUF:HideBlizzardFrames()
 			CompactRaidFrameContainer:HookScript("OnShow", hideRaid)
 			CompactRaidFrameManager:HookScript("OnShow", hideRaid)
 		end
+	end
+
+	-- Register UNIT_AURA on CompactUnitFrames for the Blizzard filter
+	if needCompactAuraTracking and CompactUnitFrame_UpdateUnitEvents and not active_hiddens.compactAuraHook then
+		active_hiddens.compactAuraHook = true
+		hooksecurefunc("CompactUnitFrame_UpdateUnitEvents", function(compactFrame)
+			if compactFrame.unit then
+				pcall(compactFrame.RegisterUnitEvent, compactFrame, "UNIT_AURA", compactFrame.unit,
+					compactFrame.displayedUnit ~= compactFrame.unit and compactFrame.displayedUnit or nil)
+			end
+		end)
 	end
 
 	if( self.db.profile.hidden.buffs and not active_hiddens.buffs ) then
@@ -922,11 +1000,21 @@ function ShadowUF:HideBlizzardFrames()
 	end
 
 	if( self.db.profile.hidden.target and not active_hiddens.target ) then
-		hideBlizzardFrames(TargetFrame, ComboFrame, TargetFrameToT)
+		if unitUsesBlizzardFilter("target") and TargetFrame then
+			hideBlizzardFrameKeepAuras(TargetFrame, {"UNIT_AURA", "PLAYER_TARGET_CHANGED"})
+			hideBlizzardFrames(ComboFrame, TargetFrameToT)
+		else
+			hideBlizzardFrames(TargetFrame, ComboFrame, TargetFrameToT)
+		end
 	end
 
 	if( self.db.profile.hidden.focus and not active_hiddens.focus ) then
-		hideBlizzardFrames(FocusFrame, FocusFrameToT)
+		if unitUsesBlizzardFilter("focus") and FocusFrame then
+			hideBlizzardFrameKeepAuras(FocusFrame, {"UNIT_AURA", "PLAYER_FOCUS_CHANGED"})
+			hideBlizzardFrames(FocusFrameToT)
+		else
+			hideBlizzardFrames(FocusFrame, FocusFrameToT)
+		end
 	end
 
 	if( self.db.profile.hidden.boss and not active_hiddens.boss ) then

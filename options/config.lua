@@ -2266,6 +2266,7 @@ local function loadUnitOptions()
 			["RAID_IN_COMBAT"] = L["Only shows buffs deemed useful in combat (e.g. HoTs)."],
 			["PLAYER|RAID_IN_COMBAT"] = L["Only shows your buffs deemed useful in combat by Blizzard."],
 			["IMPORTANT"] = L["Only shows buffs marked as important by Blizzard. Server-maintained list."],
+			["BLIZZARD"] = L["Shows the same auras that Blizzard's default unit frames display. Reads filtered data directly from Blizzard frames."],
 		},
 		debuffs = {
 			["ALL"] = L["Shows all debuffs on the unit without any filtering."],
@@ -2276,6 +2277,7 @@ local function loadUnitOptions()
 			["CROWD_CONTROL"] = L["Only shows crowd control effects (Stun, Root, Silence, Fear, Polymorph, Cyclone, etc.)."],
 			["RAID_IN_COMBAT"] = L["Only shows debuffs deemed useful in combat by Blizzard."],
 			["IMPORTANT"] = L["Only shows debuffs marked as important by Blizzard. Server-maintained list."],
+			["BLIZZARD"] = L["Shows the same auras that Blizzard's default unit frames display. Reads filtered data directly from Blizzard frames."],
 		}
 	}
 
@@ -2293,6 +2295,7 @@ local function loadUnitOptions()
 			["RAID_IN_COMBAT"] = L["Combat auras"],
 			["PLAYER|RAID_IN_COMBAT"] = L["My combat auras"],
 			["IMPORTANT"] = L["Important auras"],
+			["BLIZZARD"] = L["Blizzard frames"],
 		},
 		debuffs = {
 			["ALL"] = L["All Auras"],
@@ -2303,8 +2306,12 @@ local function loadUnitOptions()
 			["CROWD_CONTROL"] = L["Crowd control effects"],
 			["RAID_IN_COMBAT"] = L["Combat debuffs"],
 			["IMPORTANT"] = L["Important auras"],
+			["BLIZZARD"] = L["Blizzard frames"],
 		}
 	}
+
+	-- Unit types that have a Blizzard frame source for the Blizzard filter
+	local blizzardFilterUnits = {target = true, focus = true, party = true, raid = true, arena = true, maintank = true, mainassist = true}
 
 	-- Helper to get frame config (auras.buffs[1], auras.debuffs[2], etc.)
 	local function getAuraFrameConfig(unit, auraType, frameIndex)
@@ -2516,7 +2523,15 @@ local function loadUnitOptions()
 					end,
 					values = function(info)
 						local auraType = info[#(info) - 2]
-						return filterValues[auraType] or filterValues.buffs
+						local base = filterValues[auraType] or filterValues.buffs
+						if not blizzardFilterUnits[info[2]] then
+							local filtered = {}
+							for k, v in pairs(base) do
+								if k ~= "BLIZZARD" then filtered[k] = v end
+							end
+							return filtered
+						end
+						return base
 					end,
 					get = function(info)
 						local auraType = info[#(info) - 2]
