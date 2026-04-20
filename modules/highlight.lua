@@ -116,7 +116,8 @@ function Highlight:OnEnable(frame)
 		frame:RegisterUpdateFunc(self, "UpdateThreat")
 	end
 
-	if( ShadowUF.db.profile.units[frame.unitType].highlight.attention and frame.unitType ~= "target" and frame.unitType ~= "focus" ) then
+	-- UnitIsUnit returns secret booleans for compound tokens on restricted maps, skip them :[
+	if( ShadowUF.db.profile.units[frame.unitType].highlight.attention and not string.find(frame.unitType, "target") and frame.unitType ~= "focus" ) then
 		frame:RegisterNormalEvent("PLAYER_TARGET_CHANGED", self, "UpdateAttention")
 		frame:RegisterNormalEvent("PLAYER_FOCUS_CHANGED", self, "UpdateAttention")
 		frame:RegisterUpdateFunc(self, "UpdateAttention")

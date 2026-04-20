@@ -3419,7 +3419,7 @@ local function loadUnitOptions()
 								name = L["For target/focus"],
 								desc = L["Highlight units that you are targeting or have focused."],
 								arg = "highlight.attention",
-								hidden = function(info) return info[2] == "target" or info[2] == "focus" end,
+								hidden = function(info) return string.find(info[2], "target") or info[2] == "focus" end,
 							},
 							aggro = {
 								order = 5,
