@@ -564,6 +564,8 @@ L["Don't hide when empty"] = "Não ocultar enquanto vazio"
 L["Don't use a filter"] = [=[Não use um filtro
 
 ]=]
+L["Direction aura icons fill within a row."] = "Direção em que os ícones de auras preenchem uma linha."
+L["Direction new rows of auras stack."] = "Direção em que novas linhas de auras se empilham."
 L["Down"] = "Baixo"
 L["Druid form"] = [=[Forma druida
 
@@ -690,6 +692,7 @@ L["For target/focus"] = [=[Para o alvo/foco
 L["Forces a static color to be used for the background of all bars"] = [=[Força uma cor estática a ser usada para o plano de fundo de todas as barras
 
 ]=]
+L["Free (screen)"] = "Livre (tela)"
 L["Frame"] = "Quadro"
 L["Frame alpha when you are out of combat while having no target and 100% mana or energy."] = "Quadro alfa quando você está fora de combate sem ter alvo e 100% de mana ou energia."
 L["Frame alpha while this unit is in combat."] = "Quadro alfa enquanto esta unidade está em combate."
@@ -1083,6 +1086,12 @@ L["Monochrome Outline"] = [=[Contorno monocromático
 ]=]
 L["Name"] = "Nome"
 L["Name (Abbreviated)"] = "Nome"
+L["Name (NSRT Nickname)"] = "Nome (Apelido NSRT)"
+L["Name (NSRT Nickname/Class colored)"] = "Nome (Apelido NSRT/Cor da classe)"
+L["Name (NSRT Nickname/Abbreviated)"] = "Nome (Apelido NSRT/Abreviado)"
+L["Unit name replaced by NSRT nickname if available. Falls back to the regular name if NSRT is not installed or no nickname is set."] = "Nome da unidade substituído pelo apelido NSRT, se disponível. Mostra o nome normal se o NSRT não estiver instalado ou nenhum apelido estiver definido."
+L["NSRT nickname colored by class. Falls back to the regular name if NSRT is not installed or no nickname is set.|n|nIn combat, shows uncolored name on enemy units."] = "Apelido NSRT colorido pela classe. Mostra o nome normal se o NSRT não estiver instalado ou nenhum apelido estiver definido.|n|nEm combate, mostra o nome sem cor em unidades inimigas."
+L["Abbreviated NSRT nickname (if longer than 10 characters). Falls back to the regular name if NSRT is not installed or no nickname is set.|n|nIn combat, shows full (non-abbreviated) name on enemy units."] = "Apelido NSRT abreviado (se tiver mais de 10 caracteres). Mostra o nome normal se o NSRT não estiver instalado ou nenhum apelido estiver definido.|n|nEm combate, mostra o nome completo em unidades inimigas."
 L["Name of a friendly spell to check range."] = "Nome de um feitiço amigável para verificar o alcance."
 L["Neutral"] = "Neutro"
 L["Never (Disabled)"] = "Never (desabilitado)"

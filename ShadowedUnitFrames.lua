@@ -5,7 +5,7 @@
 ShadowUF = select(2, ...)
 
 local L = ShadowUF.L
-ShadowUF.dbRevision = 67
+ShadowUF.dbRevision = 68
 ShadowUF.playerUnit = "player"
 ShadowUF.enabledUnits = {}
 ShadowUF.modules = {}
@@ -378,6 +378,58 @@ function ShadowUF:CheckUpgrade()
 			end
 		end
 	end
+
+	-- Migrate old anchorPoint codes to new system (anchorPoint + growH + growV)
+	if( revision <= 67 ) then
+		local anchorMigration = {
+			TL  = {a = "TOPLEFT",     h = "RIGHT", v = "BOTTOM"},
+			TR  = {a = "TOPRIGHT",    h = "LEFT",  v = "BOTTOM"},
+			BL  = {a = "BOTTOMLEFT",  h = "RIGHT", v = "TOP"},
+			BR  = {a = "BOTTOMRIGHT", h = "LEFT",  v = "TOP"},
+			TC  = {a = "TOP",         h = "LEFT",  v = "BOTTOM"},
+			BC  = {a = "BOTTOM",      h = "LEFT",  v = "TOP"},
+			RT  = {a = "TOPRIGHT",    h = "RIGHT", v = "BOTTOM"},
+			RB  = {a = "BOTTOMRIGHT", h = "RIGHT", v = "TOP"},
+			LT  = {a = "TOPLEFT",     h = "LEFT",  v = "BOTTOM"},
+			LB  = {a = "BOTTOMLEFT",  h = "LEFT",  v = "TOP"},
+			LC  = {a = "LEFT",        h = "LEFT",  v = "BOTTOM"},
+			RC  = {a = "RIGHT",       h = "RIGHT", v = "BOTTOM"},
+			C   = {a = "CENTER",      h = "RIGHT", v = "BOTTOM"},
+			CLI = {a = "LEFT",        h = "RIGHT", v = "BOTTOM"},
+			CRI = {a = "RIGHT",       h = "LEFT",  v = "BOTTOM"},
+			TLI = {a = "TOPLEFT",     h = "RIGHT", v = "BOTTOM"},
+			TRI = {a = "TOPRIGHT",    h = "LEFT",  v = "BOTTOM"},
+			BLI = {a = "BOTTOMLEFT",  h = "RIGHT", v = "TOP"},
+			BRI = {a = "BOTTOMRIGHT", h = "LEFT",  v = "TOP"},
+		}
+
+		for unit, config in pairs(self.db.profile.units) do
+			if( config.auras ) then
+				for _, key in pairs({"buffs", "debuffs"}) do
+					local typeConfig = config.auras[key]
+					if( typeConfig ) then
+						for i = 1, 6 do
+							local fc = typeConfig[i]
+							if( fc and fc.anchorPoint ) then
+								local m = anchorMigration[fc.anchorPoint]
+								if( m ) then
+									fc.anchorPoint = m.a
+									fc.growH = fc.growH or m.h
+									fc.growV = fc.growV or m.v
+								end
+							end
+						end
+					end
+				end
+				if( config.auras.bossDebuffs ) then
+					local m = anchorMigration[config.auras.bossDebuffs.anchorPoint]
+					if( m ) then
+						config.auras.bossDebuffs.anchorPoint = m.a
+					end
+				end
+			end
+		end
+	end
 end
 
 local function zoneEnabled(zone, zoneList)
@@ -449,23 +501,23 @@ function ShadowUF:LoadUnitDefaults()
 			auraIndicators = {enabled = false},
 			auras = {
 				buffs = {
-					[1] = {enabled = true, temporary = (unit == "player"), clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "ALL", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TL", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
-					[2] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "PLAYER", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TL", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
-					[3] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "RAID", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TL", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
-					[4] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "BIG_DEFENSIVE", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TL", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
-					[5] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "EXTERNAL_DEFENSIVE", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TL", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
-					[6] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "IMPORTANT", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TL", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
+					[1] = {enabled = true, temporary = (unit == "player"), clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "ALL", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TOPLEFT", growH = "RIGHT", growV = "BOTTOM", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
+					[2] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "PLAYER", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TOPLEFT", growH = "RIGHT", growV = "BOTTOM", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
+					[3] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "RAID", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TOPLEFT", growH = "RIGHT", growV = "BOTTOM", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
+					[4] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "BIG_DEFENSIVE", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TOPLEFT", growH = "RIGHT", growV = "BOTTOM", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
+					[5] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "EXTERNAL_DEFENSIVE", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TOPLEFT", growH = "RIGHT", growV = "BOTTOM", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
+					[6] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "IMPORTANT", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "TOPLEFT", growH = "RIGHT", growV = "BOTTOM", x = 0, y = 0, enlarge = {}, timers = {ALL = true}},
 				},
 				debuffs = {
-					[1] = {enabled = true, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "ALL", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BL", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
-					[2] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "PLAYER", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BL", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
-					[3] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "RAID_PLAYER_DISPELLABLE", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BL", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
-					[4] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "RAID", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BL", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
-					[5] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "CROWD_CONTROL", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BL", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
-					[6] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "IMPORTANT", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BL", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
+					[1] = {enabled = true, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "ALL", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BOTTOMLEFT", growH = "RIGHT", growV = "TOP", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
+					[2] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "PLAYER", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BOTTOMLEFT", growH = "RIGHT", growV = "TOP", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
+					[3] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "RAID_PLAYER_DISPELLABLE", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BOTTOMLEFT", growH = "RIGHT", growV = "TOP", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
+					[4] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "RAID", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BOTTOMLEFT", growH = "RIGHT", growV = "TOP", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
+					[5] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "CROWD_CONTROL", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BOTTOMLEFT", growH = "RIGHT", growV = "TOP", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
+					[6] = {enabled = false, clickThrough = false, disableRemovableColor = false, useFilter = false, filter = "IMPORTANT", anchorMode = "COLUMN", perRow = 10, maxRows = 1, size = 16, selfScale = 1.30, anchorPoint = "BOTTOMLEFT", growH = "RIGHT", growV = "TOP", x = 0, y = 0, enlarge = {PLAYER = true}, timers = {ALL = true}},
 				},
 				-- Boss debuffs (Private Auras) - player only
-				bossDebuffs = {enabled = false, size = 32, perRow = 3, maxRows = 1, anchorPoint = "C", x = 0, y = 0, showCooldown = true, showCooldownNumbers = true},
+				bossDebuffs = {enabled = false, size = 32, perRow = 3, maxRows = 1, anchorPoint = "CENTER", x = 0, y = 0, showCooldown = true, showCooldownNumbers = true},
 			},
 		}
 

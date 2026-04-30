@@ -916,6 +916,28 @@ Tags.defaultTags = {
 	end]],
 	]==]--
 	["name"] = [[function(unit, unitOwner) return UnitName(unitOwner) end]],
+	["nsrt:name"] = [[function(unit, unitOwner)
+		local name = UnitName(unitOwner)
+		if not name then return end
+		if issecretvalue(name) then return name end
+		return NSAPI and NSAPI:GetName(name, "GlobalNickNames") or name
+	end]],
+	["nsrt:colorname"] = [[function(unit, unitOwner)
+		local name = UnitName(unitOwner)
+		if not name then return end
+		if issecretvalue(name) then return name end
+		local nick = NSAPI and NSAPI:GetName(name, "GlobalNickNames") or name
+		local color = ShadowUF:GetClassColor(unitOwner)
+		if not color then return nick end
+		return string.format("%s%s|r", color, nick)
+	end]],
+	["nsrt:abbrev:name"] = [[function(unit, unitOwner)
+		local name = UnitName(unitOwner)
+		if not name then return end
+		if issecretvalue(name) then return name end
+		local nick = NSAPI and NSAPI:GetName(name, "GlobalNickNames") or name
+		return string.len(nick) > 10 and ShadowUF.Tags.abbrevCache[nick] or nick
+	end]],
 	["server"] = [[function(unit, unitOwner)
 		local server = select(2, UnitName(unitOwner))
 		if issecretvalue(server) then return nil end
@@ -1320,6 +1342,9 @@ Tags.defaultEvents = {
 	["abbrev:name"]				= "UNIT_NAME_UPDATE",
 	["server"]					= "UNIT_NAME_UPDATE",
 	["colorname"]				= "UNIT_NAME_UPDATE",
+	["nsrt:name"]				= "UNIT_NAME_UPDATE",
+	["nsrt:colorname"]			= "UNIT_NAME_UPDATE",
+	["nsrt:abbrev:name"]		= "UNIT_NAME_UPDATE",
 	["perhp"]               	= "UNIT_HEALTH UNIT_MAXHEALTH UNIT_CONNECTION",
 	["perpp"]               	= "SUF_POWERTYPE:CURRENT UNIT_POWER_FREQUENT UNIT_MAXPOWER UNIT_CONNECTION",
 	["status"]              	= "UNIT_HEALTH PLAYER_UPDATE_RESTING UNIT_CONNECTION",
@@ -1411,6 +1436,9 @@ Tags.defaultCategories = {
 	-- ["def:name"]				= "health", -- 12.0: Disabled
 	["faction"]					= "classification",
 	["colorname"]				= "misc",
+	["nsrt:name"]				= "misc",
+	["nsrt:colorname"]			= "misc",
+	["nsrt:abbrev:name"]		= "misc",
 	["guild"]					= "misc",
 	["absolutepp"]				= "power",
 	["absolutehp"]				= "health",
@@ -1515,6 +1543,9 @@ Tags.defaultHelp = {
 	["reactcolor"]				= L["Reaction color code, use [reactcolor][name][close] to color the units name by their reaction."],
 	["dechp"]					= L["Shows the units health as a percentage rounded to the first decimal, meaning 61 out of 110 health is shown as 55.4%."],
 	["abbrev:name"]				= L["Abbreviates unit names above 10 characters, \"Dark Rune Champion\" becomes \"D.R.Champion\" and \"Dark Rune Commoner\" becomes \"D.R.Commoner\".|n|nIn combat, shows full (non-abbreviated) name on enemy units."],
+	["nsrt:name"]				= L["Unit name replaced by NSRT nickname if available. Falls back to the regular name if NSRT is not installed or no nickname is set."],
+	["nsrt:colorname"]			= L["NSRT nickname colored by class. Falls back to the regular name if NSRT is not installed or no nickname is set.|n|nIn combat, shows uncolored name on enemy units."],
+	["nsrt:abbrev:name"]		= L["Abbreviated NSRT nickname (if longer than 10 characters). Falls back to the regular name if NSRT is not installed or no nickname is set.|n|nIn combat, shows full (non-abbreviated) name on enemy units."],
 	["group"]					= L["Shows current group number of the unit."],
 	["close"]					= L["Closes a color code, prevents colors from showing up on text that you do not want it to."],
 	["druid:curpp"]         	= string.format(L["Works the same as [%s], but this is only shown if the unit is in Cat or Bear form."], "currpp"),
@@ -1563,6 +1594,9 @@ Tags.defaultNames = {
 	["abs:incheal"]				= L["Incoming heal (Absolute)"],
 	["incheal"]					= L["Incoming heal (Short)"],
 	["abbrev:name"]				= L["Name (Abbreviated)"],
+	["nsrt:name"]				= L["Name (NSRT Nickname)"],
+	["nsrt:colorname"]			= L["Name (NSRT Nickname/Class colored)"],
+	["nsrt:abbrev:name"]		= L["Name (NSRT Nickname/Abbreviated)"],
 	["smart:curmaxhp"]			= L["Cur/Max HP (Smart)"],
 	["smart:curmaxpp"]			= L["Cur/Max PP (Smart)"],
 	["pvp:time"]				= L["PVP timer"],
@@ -1634,6 +1668,20 @@ Tags.defaultNames = {
 	["monk:stagger"]			= L["Stagger (Monk)"],
 	["monk:abs:stagger"]		= L["Stagger (Monk/Absolute)"]
 }
+
+-- NSRT nickname callback, refresh nsrt tags when nicknames change
+local nsrtFrame = CreateFrame("Frame")
+nsrtFrame:RegisterEvent("PLAYER_LOGIN")
+nsrtFrame:SetScript("OnEvent", function()
+	if not NSAPI or not NSAPI.RegisterCallback then return end
+	NSAPI:RegisterCallback("NSRT_NICKNAME_UPDATED", function()
+		for fontString in pairs(regFontStrings) do
+			if fontString.UpdateTags then
+				fontString:UpdateTags()
+			end
+		end
+	end, Tags)
+end)
 
 -- List of event types
 Tags.eventType = {

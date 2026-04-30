@@ -2223,11 +2223,19 @@ local function loadUnitOptions()
 		return buffs.anchorPoint == debuffs.anchorPoint
 	end
 
-	local defaultAuraList = {["BL"] = L["Bottom"], ["TL"] = L["Top"], ["LT"] = L["Left"], ["RT"] = L["Right"], ["C"] = L["Center"], ["CLI"] = L["Center Left"], ["CRI"] = L["Center Right"]}
-	local advancedAuraList = {["BL"] = L["Bottom Left"], ["BR"] = L["Bottom Right"], ["TL"] = L["Top Left"], ["TR"] = L["Top Right"], ["RT"] = L["Right Top"], ["RB"] = L["Right Bottom"], ["LT"] = L["Left Top"], ["LB"] = L["Left Bottom"], ["C"] = L["Center"], ["CLI"] = L["Center Left"], ["CRI"] = L["Center Right"]}
-	local function getAuraAnchors()
-		return ShadowUF.db.profile.advanced and advancedAuraList or defaultAuraList
-	end
+	local auraAnchorList = {
+		TOPLEFT = L["Top Left"], TOP = L["Top"], TOPRIGHT = L["Top Right"],
+		LEFT = L["Left"], CENTER = L["Center"], RIGHT = L["Right"],
+		BOTTOMLEFT = L["Bottom Left"], BOTTOM = L["Bottom"], BOTTOMRIGHT = L["Bottom Right"],
+	}
+	local playerAuraAnchorList = {
+		TOPLEFT = L["Top Left"], TOP = L["Top"], TOPRIGHT = L["Top Right"],
+		LEFT = L["Left"], CENTER = L["Center"], RIGHT = L["Right"],
+		BOTTOMLEFT = L["Bottom Left"], BOTTOM = L["Bottom"], BOTTOMRIGHT = L["Bottom Right"],
+		FREE = L["Free (screen)"],
+	}
+	local growHValues = {RIGHT = L["Right"], LEFT = L["Left"], CENTER = L["Center"]}
+	local growVValues = {TOP = L["Up"], BOTTOM = L["Down"]}
 
 	local function hideStealable(info)
 		if( not ShadowUF.db.profile.advanced ) then return true end
@@ -2333,12 +2341,8 @@ local function loadUnitOptions()
 	-- Create options for a single aura frame slot
 	local function createAuraFrameOptions(frameIndex)
 		local frameName = L["Frame"] .. " " .. frameIndex
-		return {
-			type = "group",
-			inline = true,
-			name = frameName,
-			order = frameIndex,
-			args = {
+		local frameArgs
+		frameArgs = {
 				enabled = {
 					order = 1,
 					type = "toggle",
@@ -2559,20 +2563,77 @@ local function loadUnitOptions()
 					order = 3,
 					type = "select",
 					name = L["Position"],
-					values = getAuraAnchors,
+					values = function(info) return (info[2] == "player") and playerAuraAnchorList or auraAnchorList end,
 					get = function(info)
 						local auraType = info[#(info) - 2]
 						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
-						return cfg and cfg.anchorPoint or "TL"
+						local anchor = cfg and cfg.anchorPoint or "TOPLEFT"
+						-- Update x/y slider ranges based on anchor type
+						local isFree = (anchor == "FREE")
+						local halfW = isFree and math.floor(GetScreenWidth() / 2) or 100
+						local halfH = isFree and math.floor(GetScreenHeight() / 2) or 100
+						frameArgs.x.softMin = -halfW
+						frameArgs.x.softMax = halfW
+						frameArgs.y.softMin = -halfH
+						frameArgs.y.softMax = halfH
+						return anchor
 					end,
 					set = function(info, value)
 						local auraType = info[#(info) - 2]
+						local isFree = (value == "FREE")
+						local halfW = isFree and math.floor(GetScreenWidth() / 2) or 100
+						local halfH = isFree and math.floor(GetScreenHeight() / 2) or 100
+						frameArgs.x.softMin = -halfW
+						frameArgs.x.softMax = halfW
+						frameArgs.y.softMin = -halfH
+						frameArgs.y.softMax = halfH
 						setAuraFrameValue(info[2], auraType, frameIndex, "anchorPoint", value)
 					end,
 					disabled = function(info)
 						local auraType = info[#(info) - 2]
 						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
-						-- Disabled if frame not enabled OR if anchorOn is enabled (position is inherited)
+						return not (cfg and cfg.enabled) or (cfg and cfg.anchorOn)
+					end,
+				},
+				growH = {
+					order = 3.1,
+					type = "select",
+					name = L["Row growth"],
+					desc = L["Direction aura icons fill within a row."],
+					values = growHValues,
+					get = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return cfg and cfg.growH or "RIGHT"
+					end,
+					set = function(info, value)
+						local auraType = info[#(info) - 2]
+						setAuraFrameValue(info[2], auraType, frameIndex, "growH", value)
+					end,
+					disabled = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return not (cfg and cfg.enabled) or (cfg and cfg.anchorOn)
+					end,
+				},
+				growV = {
+					order = 3.2,
+					type = "select",
+					name = L["Column growth"],
+					desc = L["Direction new rows of auras stack."],
+					values = growVValues,
+					get = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
+						return cfg and cfg.growV or "BOTTOM"
+					end,
+					set = function(info, value)
+						local auraType = info[#(info) - 2]
+						setAuraFrameValue(info[2], auraType, frameIndex, "growV", value)
+					end,
+					disabled = function(info)
+						local auraType = info[#(info) - 2]
+						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
 						return not (cfg and cfg.enabled) or (cfg and cfg.anchorOn)
 					end,
 				},
@@ -2640,7 +2701,7 @@ local function loadUnitOptions()
 					order = 7,
 					type = "range",
 					name = L["X Offset"],
-					min = -100, max = 100, step = 1, softMin = -50, softMax = 50,
+					min = -1000, max = 1000, step = 1, softMin = -100, softMax = 100,
 					get = function(info)
 						local auraType = info[#(info) - 2]
 						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
@@ -2660,7 +2721,7 @@ local function loadUnitOptions()
 					order = 8,
 					type = "range",
 					name = L["Y Offset"],
-					min = -100, max = 100, step = 1, softMin = -50, softMax = 50,
+					min = -1000, max = 1000, step = 1, softMin = -100, softMax = 100,
 					get = function(info)
 						local auraType = info[#(info) - 2]
 						local cfg = getAuraFrameConfig(info[2], auraType, frameIndex)
@@ -2852,7 +2913,7 @@ local function loadUnitOptions()
 					end,
 				},
 			}
-		}
+		return {type = "group", inline = true, name = frameName, order = frameIndex, args = frameArgs}
 	end
 
 	Config.auraTable = {
@@ -2911,12 +2972,10 @@ local function loadUnitOptions()
 				order = 2,
 				type = "select",
 				name = L["Position"],
-				values = function()
-					return ShadowUF.db.profile.advanced and advancedAuraList or defaultAuraList
-				end,
+				values = function(info) return (info[2] == "player") and playerAuraAnchorList or auraAnchorList end,
 				get = function(info)
 					local cfg = getBossDebuffsCfg(info)
-					return cfg and cfg.anchorPoint or "C"
+					return cfg and cfg.anchorPoint or "CENTER"
 				end,
 				set = function(info, value)
 					local cfg = getBossDebuffsCfg(info)
@@ -5544,6 +5603,31 @@ local function loadUnitOptions()
 				get = getUnit,
 				childGroups = "tree",
 				args = {
+					auraTestMode = {
+						order = 4,
+						type = "group",
+						name = L["Test mode"],
+						args = {
+							toggle = {
+								order = 1,
+								type = "toggle",
+								name = L["Test mode"],
+								desc = L["Shows placeholder auras on this unit's frames to preview positioning."],
+								width = "full",
+								get = function(info)
+									local cfg = ShadowUF.db.profile.units[info[2]]
+									return cfg and cfg.auras and cfg.auras.testMode
+								end,
+								set = function(info, value)
+									local cfg = ShadowUF.db.profile.units[info[2]]
+									if cfg and cfg.auras then
+										cfg.auras.testMode = value
+										ShadowUF.Layout:Reload()
+									end
+								end,
+							},
+						},
+					},
 					buffs = Config.auraTable,
 					debuffs = Config.auraTable,
 					bossDebuffs = Config.bossDebuffsTable,
@@ -8521,6 +8605,22 @@ function Config:Open()
 	end
 
 	AceDialog:Open("ShadowedUF")
+
+	-- Clear aura test mode on all units when config window is closed
+	local aceFrame = AceDialog.OpenFrames["ShadowedUF"]
+	if( aceFrame and aceFrame.frame and not aceFrame.frame.suf_hooked ) then
+		aceFrame.frame.suf_hooked = true
+		aceFrame.frame:HookScript("OnHide", function()
+			local needReload = false
+			for _, unitCfg in pairs(ShadowUF.db.profile.units) do
+				if( unitCfg.auras and unitCfg.auras.testMode ) then
+					unitCfg.auras.testMode = nil
+					needReload = true
+				end
+			end
+			if( needReload ) then ShadowUF.Layout:Reload() end
+		end)
+	end
 
 	if( not defaultToggles ) then
 		defaultToggles = true

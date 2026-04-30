@@ -121,98 +121,115 @@ function Auras:OnDisable(frame)
 end
 
 -- Aura positioning code
--- Definitely some of the more unusual code I've done, not sure I really like this method
--- but it does allow more flexibility with how things are anchored without me having to hardcode the 10 different growth methods
-local function load(text)
-	local result, err = loadstring(text)
-	if( err ) then
-		error(err, 3)
-		return nil
-	end
+-- Key is "growH:growV" (e.g. "RIGHT:BOTTOM", "CENTER:TOP")
+-- growH = LEFT/RIGHT/CENTER (icon fill direction within a row)
+-- growV = TOP/BOTTOM (row stacking direction)
 
-	return result()
+local function getPositionKey(config, forcedGrowH, forcedGrowV)
+	local h = forcedGrowH or config.growH or "RIGHT"
+	local v = forcedGrowV or config.growV or "BOTTOM"
+	return h .. ":" .. v
+end
+
+-- Helper to get anchor, growth, and inset for positioning
+local function getAnchorInfo(config, group)
+	local anchorPoint = group.forcedAnchorPoint or config.anchorPoint
+	local growH = group.forcedGrowH or config.growH or "RIGHT"
+	local growV = group.forcedGrowV or config.growV or "BOTTOM"
+	local inset = (anchorPoint == "FREE") and 0 or ShadowUF.db.profile.backdrop.inset
+	return anchorPoint, growH, growV, inset
 end
 
 local positionData = setmetatable({}, {
 	__index = function(tbl, index)
 		local data = {}
-		local columnGrowth = ShadowUF.Layout:GetColumnGrowth(index)
-		local auraGrowth = ShadowUF.Layout:GetAuraGrowth(index)
-		data.xMod = (columnGrowth == "RIGHT" or auraGrowth == "RIGHT") and 1 or -1
-		data.yMod = (columnGrowth ~= "TOP" and auraGrowth ~= "TOP") and -1 or 1
+		local growH, growV = strsplit(":", index)
 
-		local auraX, colX, auraY, colY, xOffset, yOffset, initialXOffset, initialYOffset = 0, 0, 0, 0, "", "", "", ""
-		if( columnGrowth == "LEFT" or columnGrowth == "RIGHT" ) then
-			colX = 1
-			xOffset = " + offset"
-			initialXOffset = string.format(" + (%d * offset)", data.xMod)
-			auraY = 3
-			data.isSideGrowth = true
-		elseif( columnGrowth == "TOP" or columnGrowth == "BOTTOM" ) then
-			colY = 2
-			yOffset = " + offset"
-			initialYOffset = string.format(" + (%d * offset)", data.yMod)
-			auraX = 2
+		data.isCenterGrowth = (growH == "CENTER")
+		local effectiveH = data.isCenterGrowth and "RIGHT" or growH
+
+		data.xMod = (effectiveH == "RIGHT") and 1 or -1
+		data.yMod = (growV == "TOP") and 1 or -1
+
+		local auraX = 2
+		local colY = 2
+
+		data.initialAnchor = function(button, offset)
+			button:ClearAllPoints()
+			button:SetPoint(button.point, button.anchorTo, button.relativePoint, button.xOffset, button.yOffset + (data.yMod * offset))
+			button.anchorOffset = offset
 		end
 
-		data.initialAnchor = load(string.format([[return function(button, offset)
+		local colPoint = ShadowUF.Layout:ReverseDirection(growV)
+		data.column = function(button, positionTo, offset)
 			button:ClearAllPoints()
-			button:SetPoint(button.point, button.anchorTo, button.relativePoint, button.xOffset%s, button.yOffset%s)
-			button.anchorOffset = offset
-		end]], initialXOffset, initialYOffset))
-		data.column = load(string.format([[return function(button, positionTo, offset)
-			button:ClearAllPoints()
-			button:SetPoint("%s", positionTo, "%s", %d * (%d%s), %d * (%d%s)) end
-		]], ShadowUF.Layout:ReverseDirection(columnGrowth), columnGrowth, data.xMod, colX, xOffset, data.yMod, colY, yOffset))
-		data.aura = load(string.format([[return function(button, positionTo)
-			button:ClearAllPoints()
-			button:SetPoint("%s", positionTo, "%s", %d, %d) end
-		]], ShadowUF.Layout:ReverseDirection(auraGrowth), auraGrowth, data.xMod * auraX, data.yMod * auraY))
+			button:SetPoint(colPoint, positionTo, growV, 0, data.yMod * (colY + offset))
+		end
+
+		if not data.isCenterGrowth then
+			local auraPoint = ShadowUF.Layout:ReverseDirection(effectiveH)
+			data.aura = function(button, positionTo)
+				button:ClearAllPoints()
+				button:SetPoint(auraPoint, positionTo, effectiveH, data.xMod * auraX, 0)
+			end
+		else
+			data.auraRight = function(button, positionTo)
+				button:ClearAllPoints()
+				button:SetPoint("LEFT", positionTo, "RIGHT", auraX, 0)
+			end
+			data.auraLeft = function(button, positionTo)
+				button:ClearAllPoints()
+				button:SetPoint("RIGHT", positionTo, "LEFT", -auraX, 0)
+			end
+		end
 
 		tbl[index] = data
 		return tbl[index]
 	end,
 })
 
-local function positionButton(id,  group, config)
-	local position = positionData[group.forcedAnchorPoint or config.anchorPoint]
+-- Helper to set first-button properties
+local function setupFirstButton(button, config, group, position)
+	local anchorPoint, growH, growV, inset = getAnchorInfo(config, group)
+	local point, relativePoint = ShadowUF.Layout:GetAuraPoint(anchorPoint, growH, growV)
+	button.isAuraAnchor = true
+	button.point = point
+	button.relativePoint = relativePoint
+	button.xOffset = config.x + (position.xMod * inset)
+	button.yOffset = config.y + (position.yMod * inset)
+	button.anchorTo = group.anchorTo
+end
+
+-- Initial button positioning during creation (positionAllButtons* overrides later)
+local function positionButton(id, group, config)
+	local position = positionData[getPositionKey(config, group.forcedGrowH, group.forcedGrowV)]
 	local button = group.buttons[id]
 	button.isAuraAnchor = nil
 
-	-- Alright, in order to find out where an aura group is going to be anchored to certain buttons need
-	-- to be flagged as suitable anchors visually, this speeds it up because this data is cached and doesn't
-	-- have to be recalculated unless auras are specifically changed
 	if( id > 1 ) then
-		if( position.isSideGrowth and id <= config.perRow ) then
-			button.isAuraAnchor = true
-		end
-
 		if( id % config.perRow == 1 or config.perRow == 1 ) then
 			position.column(button, group.buttons[id - config.perRow], 0)
-
-			if( not position.isSideGrowth ) then
-				button.isAuraAnchor = true
+			button.isAuraAnchor = true
+		elseif( position.isCenterGrowth ) then
+			local posInRow = ((id - 1) % config.perRow)
+			if posInRow % 2 == 1 then
+				position.auraRight(button, group.buttons[id - 1])
+			else
+				position.auraLeft(button, group.buttons[id - 1])
 			end
 		else
 			position.aura(button, group.buttons[id - 1])
 		end
 	else
-		button.isAuraAnchor = true
-		button.point = ShadowUF.Layout:GetPoint(config.anchorPoint)
-		button.relativePoint = ShadowUF.Layout:GetRelative(config.anchorPoint)
-		button.xOffset = config.x + (position.xMod * ShadowUF.db.profile.backdrop.inset)
-		button.yOffset = config.y + (position.yMod * ShadowUF.db.profile.backdrop.inset)
-		button.anchorTo = group.anchorTo
-
+		setupFirstButton(button, config, group, position)
 		position.initialAnchor(button, 0)
 	end
 end
 
 
--- Fixed layout: grid-based wrapping (always perRow auras per row) with inter-row offset compensation
--- Adapted from v4.4.14 original behavior
+-- Fixed layout, grid-based wrapping with inter-row offset compensation for scaled auras
 local function positionAllButtonsFixed(group, config)
-	local position = positionData[group.forcedAnchorPoint or config.anchorPoint]
+	local position = positionData[getPositionKey(config, group.forcedGrowH, group.forcedGrowV)]
 
 	-- Pass 1: figure out which rows have scaled auras
 	local columnID = 0
@@ -232,6 +249,8 @@ local function positionAllButtonsFixed(group, config)
 	end
 
 	-- Pass 2: position with offset compensation between rows
+	-- Center growth tracking
+	local rightEnd, leftEnd, rowCenter
 	columnID = 1
 	for id = 1, group.totalAuras do
 		local button = group.buttons[id]
@@ -243,40 +262,42 @@ local function positionAllButtonsFixed(group, config)
 			if( id % config.perRow == 1 or config.perRow == 1 ) then
 				columnID = columnID + 1
 
-				local anchorButton = group.buttons[id - config.perRow]
+				-- Anchor to center button of previous row (center growth)
+				local anchorButton = position.isCenterGrowth and rowCenter or group.buttons[id - config.perRow]
 				local previousScale, currentScale = columnsHaveScale[columnID - 1], columnsHaveScale[columnID]
 				local offset = 0
-				-- Previous row has a scaled aura, and the button we are anchoring to is not scaled
 				if( previousScale and not anchorButton.isSelfScaled ) then
 					offset = (previousScale / 4)
 				end
-
-				-- Current row has a scaled aura, and the button isn't scaled
 				if( currentScale and not button.isSelfScaled ) then
 					offset = offset + (currentScale / 4)
 				end
-
-				-- Current button is scaled, previous anchor is not
 				if( button.isSelfScaled and not anchorButton.isSelfScaled ) then
 					offset = offset - (currentScale / 6)
 				end
-
-				-- At least one of them is not scaled
 				if( ( not button.isSelfScaled or not anchorButton.isSelfScaled ) and offset > 0 ) then
 					offset = offset + 1
 				end
 
 				position.column(button, anchorButton, math.ceil(offset))
+				button.isAuraAnchor = true
 
-				if( not position.isSideGrowth ) then
-					button.isAuraAnchor = true
+				if position.isCenterGrowth then
+					rowCenter = button
+					rightEnd = button
+					leftEnd = button
+				end
+			elseif( position.isCenterGrowth ) then
+				local posInRow = ((id - 1) % config.perRow)
+				if posInRow % 2 == 1 then
+					position.auraRight(button, rightEnd)
+					rightEnd = button
+				else
+					position.auraLeft(button, leftEnd)
+					leftEnd = button
 				end
 			else
 				position.aura(button, group.buttons[id - 1])
-
-				if( position.isSideGrowth ) then
-					button.isAuraAnchor = true
-				end
 			end
 		else
 			-- First button: adjust initial anchor if row has scaled auras
@@ -290,30 +311,32 @@ local function positionAllButtonsFixed(group, config)
 				end
 			end
 
-			button.isAuraAnchor = true
-			button.point = ShadowUF.Layout:GetPoint(config.anchorPoint)
-			button.relativePoint = ShadowUF.Layout:GetRelative(config.anchorPoint)
-			button.xOffset = config.x + (position.xMod * ShadowUF.db.profile.backdrop.inset)
-			button.yOffset = config.y + (position.yMod * ShadowUF.db.profile.backdrop.inset)
-			button.anchorTo = group.anchorTo
+			setupFirstButton(button, config, group, position)
 
 			if( offset ~= button.anchorOffset ) then
 				position.initialAnchor(button, offset)
+			end
+
+			if position.isCenterGrowth then
+				rowCenter = button
+				rightEnd = button
+				leftEnd = button
 			end
 		end
 	end
 end
 
 -- Dynamic layout: pixel-based flow wrapping when enlarged auras are present
--- Rows wrap based on accumulated effective width
 local function positionAllButtonsDynamic(group, config)
-	local position = positionData[group.forcedAnchorPoint or config.anchorPoint]
+	local position = positionData[getPositionKey(config, group.forcedGrowH, group.forcedGrowV)]
 	local normalSize = config.size
 	local maxRowWidth = config.perRow * normalSize
 
 	local currentRowWidth = 0
 	local rowFirst = nil
 	local prevButton = nil
+	-- Center growth tracking
+	local rightEnd, leftEnd, rowCenter, rowPos
 
 	for id = 1, group.totalAuras do
 		local button = group.buttons[id]
@@ -325,27 +348,40 @@ local function positionAllButtonsDynamic(group, config)
 		button.isAuraAnchor = nil
 
 		if( id == 1 ) then
-			button.isAuraAnchor = true
-			button.point = ShadowUF.Layout:GetPoint(config.anchorPoint)
-			button.relativePoint = ShadowUF.Layout:GetRelative(config.anchorPoint)
-			button.xOffset = config.x + (position.xMod * ShadowUF.db.profile.backdrop.inset)
-			button.yOffset = config.y + (position.yMod * ShadowUF.db.profile.backdrop.inset)
-			button.anchorTo = group.anchorTo
+			setupFirstButton(button, config, group, position)
 			position.initialAnchor(button, 0)
 			rowFirst = button
 			currentRowWidth = effectiveWidth
-		elseif( needsNewRow ) then
-			position.column(button, rowFirst, 0)
-			if( not position.isSideGrowth ) then
-				button.isAuraAnchor = true
+			if position.isCenterGrowth then
+				rowCenter = button
+				rightEnd = button
+				leftEnd = button
+				rowPos = 0
 			end
+		elseif( needsNewRow ) then
+			local anchorTo = position.isCenterGrowth and rowCenter or rowFirst
+			position.column(button, anchorTo, 0)
+			button.isAuraAnchor = true
 			rowFirst = button
 			currentRowWidth = effectiveWidth
+			if position.isCenterGrowth then
+				rowCenter = button
+				rightEnd = button
+				leftEnd = button
+				rowPos = 0
+			end
+		elseif( position.isCenterGrowth ) then
+			rowPos = rowPos + 1
+			if rowPos % 2 == 1 then
+				position.auraRight(button, rightEnd)
+				rightEnd = button
+			else
+				position.auraLeft(button, leftEnd)
+				leftEnd = button
+			end
+			currentRowWidth = currentRowWidth + effectiveWidth
 		else
 			position.aura(button, prevButton)
-			if( position.isSideGrowth and not rowFirst ) then
-				button.isAuraAnchor = true
-			end
 			currentRowWidth = currentRowWidth + effectiveWidth
 		end
 
@@ -549,7 +585,11 @@ local function updateGroup(self, groupKey, config, reverseConfig)
 	group.lastTemporary = 0
 	group.groupKey = groupKey
 	group.parent = self
-	group.anchorTo = self
+	if( config.anchorPoint == "FREE" and self.unit == "player" ) then
+		group.anchorTo = UIParent
+	else
+		group.anchorTo = self
+	end
 	group:SetFrameLevel(self.highFrame:GetFrameLevel() + 1)
 	group:Show()
 
@@ -648,6 +688,8 @@ function Auras:OnLayoutApplied(frame, config)
 					sequential = isSequential,
 				}
 				childGroup.forcedAnchorPoint = parentConfig.anchorPoint
+					childGroup.forcedGrowH = parentConfig.growH
+					childGroup.forcedGrowV = parentConfig.growV
 
 				if( isSequential ) then
 					-- Sequential mode: child scans into parent group, expand parent capacity
@@ -735,9 +777,10 @@ function Auras:SetupBossDebuffs(frame, config)
 	container:ClearAllPoints()
 
 	-- Position based on anchorPoint
-	local point = ShadowUF.Layout:GetPoint(config.anchorPoint)
-	local relativePoint = ShadowUF.Layout:GetRelative(config.anchorPoint)
-	container:SetPoint(point, frame, relativePoint, config.x or 0, config.y or 0)
+	local relativePoint = config.anchorPoint or "CENTER"
+	local anchorFrame = (relativePoint == "FREE") and UIParent or frame
+	if relativePoint == "FREE" then relativePoint = "CENTER" end
+	container:SetPoint("CENTER", anchorFrame, relativePoint, config.x or 0, config.y or 0)
 	container:SetFrameLevel(frame.highFrame:GetFrameLevel() + 2)
 	container:Show()
 
@@ -758,8 +801,9 @@ function Auras:UpdateBossDebuffs(frame)
 
 	if not privateAuraUnits[frame.unitType] then return end
 
-	-- Config mode: show placeholders (same pattern as scanConfigMode for regular auras)
-	if frame.configMode then
+	-- Config mode or per-unit test mode: show placeholders
+	local bdUnitCfg = frame.unitType and ShadowUF.db.profile.units[frame.unitType] and ShadowUF.db.profile.units[frame.unitType].auras
+	if( frame.configMode or (bdUnitCfg and bdUnitCfg.testMode) ) then
 		self:ShowBossDebuffsPlaceholders(frame)
 		return
 	end
@@ -841,7 +885,7 @@ end
 -- Grid positioning matches the real AddPrivateAuraAnchor layout
 local bossTestTextures = {
 	"Interface\\Icons\\Spell_Shadow_AuraOfDarkness",
-	"Interface\\Icons\\Spell_Shadow_CurseOfTongues",
+	"Interface\\Icons\\Spell_Shadow_Possession",
 	"Interface\\Icons\\Spell_Fire_Incinerate",
 	"Interface\\Icons\\Spell_Shadow_UnholyFrenzy",
 	"Interface\\Icons\\Spell_Nature_Earthquake",
@@ -1297,8 +1341,9 @@ end
 local function scan(parent, frame, type, config, displayConfig, filter)
 	if( frame.totalAuras >= frame.maxAuras or not config.enabled ) then return end
 
-	-- Config mode: show test auras
-	if( frame.parent.configMode ) then
+	-- Config mode or per-unit test mode: show test auras
+	local unitAurasCfg = frame.parent.unitType and ShadowUF.db.profile.units[frame.parent.unitType] and ShadowUF.db.profile.units[frame.parent.unitType].auras
+	if( frame.parent.configMode or (unitAurasCfg and unitAurasCfg.testMode) ) then
 		return scanConfigMode(parent, frame, type, config, displayConfig, filter)
 	end
 
@@ -1391,7 +1436,8 @@ end
 local function scanBlizzard(parent, frame, type, config, displayConfig)
 	if frame.totalAuras >= frame.maxAuras or not config.enabled then return end
 
-	if frame.parent.configMode then
+	local unitAurasCfg2 = frame.parent.unitType and ShadowUF.db.profile.units[frame.parent.unitType] and ShadowUF.db.profile.units[frame.parent.unitType].auras
+	if( frame.parent.configMode or (unitAurasCfg2 and unitAurasCfg2.testMode) ) then
 		local baseFilter = (type == "buffs") and "HELPFUL" or "HARMFUL"
 		return scanConfigMode(parent, frame, type, config, displayConfig, baseFilter)
 	end
@@ -1423,14 +1469,17 @@ local function scanBlizzard(parent, frame, type, config, displayConfig)
 end
 
 local function anchorGroupToGroup(frame, config, group, childConfig, childGroup)
-	-- Child group has nothing in it yet, so don't care
 	if( not childGroup.buttons[1] ) then return end
 
-	-- Group we want to anchor to has nothing in it, takeover the postion
+	-- Parent group empty, child takes over parent's position
 	if( group.totalAuras == 0 ) then
-		local position = positionData[config.anchorPoint]
+		local position = positionData[getPositionKey(config)]
+		local growH = config.growH or "RIGHT"
+		local growV = config.growV or "BOTTOM"
+		local inset = (config.anchorPoint == "FREE") and 0 or ShadowUF.db.profile.backdrop.inset
+		local point, relativePoint = ShadowUF.Layout:GetAuraPoint(config.anchorPoint, growH, growV)
 		childGroup.buttons[1]:ClearAllPoints()
-		childGroup.buttons[1]:SetPoint(ShadowUF.Layout:GetPoint(config.anchorPoint), group.anchorTo, ShadowUF.Layout:GetRelative(config.anchorPoint), config.x + (position.xMod * ShadowUF.db.profile.backdrop.inset), config.y + (position.yMod * ShadowUF.db.profile.backdrop.inset))
+		childGroup.buttons[1]:SetPoint(point, group.anchorTo, relativePoint, config.x + (position.xMod * inset), config.y + (position.yMod * inset))
 		return
 	end
 
@@ -1443,12 +1492,8 @@ local function anchorGroupToGroup(frame, config, group, childConfig, childGroup)
 		end
 	end
 
-	local position = positionData[childGroup.forcedAnchorPoint or childConfig.anchorPoint]
-	if( position.isSideGrowth ) then
-		position.aura(childGroup.buttons[1], anchorTo)
-	else
-		position.column(childGroup.buttons[1], anchorTo, 2)
-	end
+	local position = positionData[getPositionKey(childConfig, childGroup.forcedGrowH, childGroup.forcedGrowV)]
+	position.column(childGroup.buttons[1], anchorTo, 2)
 end
 
 Auras.anchorGroupToGroup = anchorGroupToGroup
@@ -1488,8 +1533,8 @@ function Auras:Update(frame)
 						group.hasErrored = true
 					end
 
-					-- Flow layout: reposition when enlarged auras take extra horizontal space
-					if( frameConfig.enlarge and frameConfig.enlarge.PLAYER and group.totalAuras > 0 ) then
+					-- Reposition: needed for enlarged auras or center growth layout
+					if( group.totalAuras > 0 and ((frameConfig.enlarge and frameConfig.enlarge.PLAYER) or frameConfig.growH == "CENTER") ) then
 						positionAllButtons(group, frameConfig)
 					end
 				end
@@ -1520,8 +1565,8 @@ function Auras:Update(frame)
 						pair.parent.hasErrored = true
 					end
 
-					-- Flow layout: reposition if enlarged auras present after sequential scan
-					if( pair.parentConfig.enlarge and pair.parentConfig.enlarge.PLAYER and pair.parent.totalAuras > 0 ) then
+					-- Reposition: same as earlier
+					if( pair.parent.totalAuras > 0 and ((pair.parentConfig.enlarge and pair.parentConfig.enlarge.PLAYER) or pair.parentConfig.growH == "CENTER") ) then
 						positionAllButtons(pair.parent, pair.parentConfig)
 					end
 

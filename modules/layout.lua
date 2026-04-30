@@ -225,6 +225,15 @@ function Layout:ReverseDirection(key)
 	return key == "LEFT" and "RIGHT" or key == "RIGHT" and "LEFT" or key == "TOP" and "BOTTOM" or key == "BOTTOM" and "TOP"
 end
 
+-- Aura positioning, anchor and growth direction are independent
+function Layout:GetAuraPoint(anchorPoint, growH, growV)
+	local relativePoint = (anchorPoint == "FREE") and "CENTER" or anchorPoint
+	local v = (growV == "TOP") and "BOTTOM" or "TOP"
+	local h = (growH == "RIGHT") and "LEFT" or (growH == "LEFT") and "RIGHT" or ""
+	local point = (h == "") and v or (v .. h)
+	return point, relativePoint
+end
+
 -- Gets the relative anchoring for Blizzards default raid frames, these differ from the split ones
 function Layout:GetRelativeAnchor(point)
 	if( point == "TOP" ) then
